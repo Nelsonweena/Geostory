@@ -1,35 +1,29 @@
+import { collection, deleteDoc, doc, getDocs, onSnapshot, query, setDoc } from 'firebase/firestore'
 import { create } from 'zustand'
-import { StateStorage, createJSONStorage, persist } from 'zustand/middleware'
 
+import { getFirebaseConfigError, getFirebaseFirestore } from '@/frontend/services/firebase'
 import { Place } from '@/shared/types/entityTypes'
 import { MarkLocationInput, MarkedLocation } from '@/shared/types/markedLocation'
 
-const storage: StateStorage = {
-  getItem: name => {
-    if (typeof window === 'undefined') return null
-    return window.localStorage.getItem(name)
-  },
-  setItem: (name, value) => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(name, value)
-  },
-  removeItem: name => {
-    if (typeof window === 'undefined') return
-    window.localStorage.removeItem(name)
-  },
-}
+let unsubscribeFromMarkedLocations: (() => void) | undefined
 
 const buildMarkId = (latitude: number, longitude: number) =>
   `${latitude.toFixed(6)}-${longitude.toFixed(6)}-${Date.now()}`
 
 const formatCoordinate = (value: number) => value.toFixed(6)
 
-const toMarkedLocation = ({
-  latitude,
-  longitude,
-  headline,
-}: MarkLocationInput): MarkedLocation => ({
+const getUserMarkedLocationsCollection = (userId: string) =>
+  collection(getFirebaseFirestore(), 'users', userId, 'markedLocations')
+
+const getUserMarkedLocationDoc = (userId: string, markId: string) =>
+  doc(getFirebaseFirestore(), 'users', userId, 'markedLocations', markId)
+
+const toMarkedLocation = (
+  userId: string,
+  { latitude, longitude, headline }: MarkLocationInput,
+): MarkedLocation => ({
   id: buildMarkId(latitude, longitude),
+  userId,
   headline:
     headline || `Marked location (${formatCoordinate(latitude)}, ${formatCoordinate(longitude)})`,
   latitude,
@@ -37,8 +31,9 @@ const toMarkedLocation = ({
   markedAt: new Date().toISOString(),
 })
 
-const toMarkedPlace = (place: Place): MarkedLocation => ({
+const toMarkedPlace = (userId: string, place: Place): MarkedLocation => ({
   id: `place-${place.id}`,
+  userId,
   placeId: place.id,
   headline: place.headline,
   latitude: place.latitude,
@@ -49,70 +44,169 @@ const toMarkedPlace = (place: Place): MarkedLocation => ({
 })
 
 interface MarkedLocationsStoreValues {
+  activeUserId?: string
   markedLocations: MarkedLocation[]
-  markLocation: (location: MarkLocationInput) => void
-  markPlace: (place: Place) => void
-  unmarkLocation: (markId: MarkedLocation['id']) => void
-  togglePlaceMark: (place: Place) => void
+  isLoadingMarkedLocations: boolean
+  markedLocationsError?: string
+  setActiveUserId: (userId?: string) => void
+  subscribeToUserMarkedLocations: (userId?: string) => void
+  markLocation: (location: MarkLocationInput) => Promise<void>
+  markPlace: (place: Place) => Promise<void>
+  unmarkLocation: (markId: MarkedLocation['id']) => Promise<void>
+  togglePlaceMark: (place: Place) => Promise<void>
   isPlaceMarked: (placeId: Place['id']) => boolean
-  clearMarkedLocations: () => void
+  clearMarkedLocations: () => Promise<void>
 }
 
-const useMarkedLocationsStore = create<MarkedLocationsStoreValues>()(
-  persist(
-    (set, get) => ({
-      markedLocations: [],
+const useMarkedLocationsStore = create<MarkedLocationsStoreValues>()((set, get) => ({
+  activeUserId: undefined,
+  markedLocations: [],
+  isLoadingMarkedLocations: false,
+  markedLocationsError: undefined,
 
-      markLocation: location =>
-        set(state => ({
-          markedLocations: [...state.markedLocations, toMarkedLocation(location)],
-        })),
+  setActiveUserId: userId => {
+    set({ activeUserId: userId })
+    get().subscribeToUserMarkedLocations(userId)
+  },
 
-      markPlace: place =>
-        set(state => {
-          if (state.markedLocations.some(location => location.placeId === place.id)) {
-            return state
-          }
+  subscribeToUserMarkedLocations: userId => {
+    unsubscribeFromMarkedLocations?.()
+    unsubscribeFromMarkedLocations = undefined
 
-          return {
-            markedLocations: [...state.markedLocations, toMarkedPlace(place)],
-          }
-        }),
+    if (!userId) {
+      set({
+        markedLocations: [],
+        isLoadingMarkedLocations: false,
+        markedLocationsError: undefined,
+      })
+      return
+    }
 
-      unmarkLocation: markId =>
-        set(state => ({
-          markedLocations: state.markedLocations.filter(location => location.id !== markId),
-        })),
+    if (getFirebaseConfigError()) {
+      set({
+        markedLocations: [],
+        isLoadingMarkedLocations: false,
+        markedLocationsError: 'Firebase is not configured.',
+      })
+      return
+    }
 
-      togglePlaceMark: place => {
-        const markedPlace = get().markedLocations.find(location => location.placeId === place.id)
+    set({
+      isLoadingMarkedLocations: true,
+      markedLocationsError: undefined,
+    })
 
-        if (markedPlace) {
-          get().unmarkLocation(markedPlace.id)
-          return
-        }
+    const markedLocationsQuery = query(getUserMarkedLocationsCollection(userId))
 
-        get().markPlace(place)
+    unsubscribeFromMarkedLocations = onSnapshot(
+      markedLocationsQuery,
+      snapshot => {
+        const markedLocations = snapshot.docs.map(documentSnapshot => ({
+          id: documentSnapshot.id,
+          ...documentSnapshot.data(),
+        })) as MarkedLocation[]
+
+        set({
+          markedLocations,
+          isLoadingMarkedLocations: false,
+          markedLocationsError: undefined,
+        })
       },
-
-      isPlaceMarked: placeId =>
-        get().markedLocations.some(location => location.placeId === placeId),
-
-      clearMarkedLocations: () => set({ markedLocations: [] }),
-    }),
-    {
-      name: 'geostory-marked-locations',
-      version: 2,
-      migrate: (persistedState, version) => {
-        if (version < 2) {
-          return { markedLocations: [] }
-        }
-
-        return persistedState as MarkedLocationsStoreValues
+      error => {
+        set({
+          markedLocations: [],
+          isLoadingMarkedLocations: false,
+          markedLocationsError: error.message || 'Unable to load marked locations.',
+        })
       },
-      storage: createJSONStorage(() => storage),
-    },
-  ),
-)
+    )
+  },
+
+  markLocation: async location => {
+    const userId = get().activeUserId
+
+    if (!userId) {
+      set({ markedLocationsError: 'Log in to mark locations.' })
+      return
+    }
+
+    const markedLocation = toMarkedLocation(userId, location)
+
+    await setDoc(getUserMarkedLocationDoc(userId, markedLocation.id), markedLocation)
+  },
+
+  markPlace: async place => {
+    const userId = get().activeUserId
+
+    if (!userId) {
+      set({ markedLocationsError: 'Log in to mark locations.' })
+      return
+    }
+
+    const placeAlreadyMarkedByUser = get().markedLocations.some(
+      location => location.userId === userId && location.placeId === place.id,
+    )
+
+    if (placeAlreadyMarkedByUser) return
+
+    const markedPlace = toMarkedPlace(userId, place)
+
+    await setDoc(getUserMarkedLocationDoc(userId, markedPlace.id), markedPlace)
+  },
+
+  unmarkLocation: async markId => {
+    const userId = get().activeUserId
+
+    if (!userId) {
+      set({ markedLocationsError: 'Log in to update marked locations.' })
+      return
+    }
+
+    await deleteDoc(getUserMarkedLocationDoc(userId, markId))
+  },
+
+  togglePlaceMark: async place => {
+    const userId = get().activeUserId
+
+    if (!userId) {
+      set({ markedLocationsError: 'Log in to mark locations.' })
+      return
+    }
+
+    const markedPlace = get().markedLocations.find(
+      location => location.userId === userId && location.placeId === place.id,
+    )
+
+    if (markedPlace) {
+      await get().unmarkLocation(markedPlace.id)
+      return
+    }
+
+    await get().markPlace(place)
+  },
+
+  isPlaceMarked: placeId => {
+    const userId = get().activeUserId
+
+    if (!userId) return false
+
+    return get().markedLocations.some(
+      location => location.userId === userId && location.placeId === placeId,
+    )
+  },
+
+  clearMarkedLocations: async () => {
+    const userId = get().activeUserId
+
+    if (!userId) {
+      set({ markedLocationsError: 'Log in to clear marked locations.' })
+      return
+    }
+
+    const snapshot = await getDocs(getUserMarkedLocationsCollection(userId))
+
+    await Promise.all(snapshot.docs.map(documentSnapshot => deleteDoc(documentSnapshot.ref)))
+  },
+}))
 
 export default useMarkedLocationsStore

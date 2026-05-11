@@ -7,7 +7,14 @@ import useMarkedLocationsStore from '@/store/useMarkedLocationsStore'
 const MARKED_LOCATIONS_SOURCE_ID = 'marked-locations-source'
 
 const MarkedLocationsLayer = () => {
-  const markedLocations = useMarkedLocationsStore(state => state.markedLocations)
+  const activeUserId = useMarkedLocationsStore(state => state.activeUserId)
+  const allMarkedLocations = useMarkedLocationsStore(state => state.markedLocations)
+
+  const markedLocations = useMemo(
+    () =>
+      activeUserId ? allMarkedLocations.filter(location => location.userId === activeUserId) : [],
+    [activeUserId, allMarkedLocations],
+  )
 
   const markedLocationsData = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
     () => ({
@@ -39,6 +46,7 @@ const MarkedLocationsLayer = () => {
           'circle-opacity': 0.75,
         }}
       />
+
       <Layer
         id="marked-location-dot"
         type="circle"
