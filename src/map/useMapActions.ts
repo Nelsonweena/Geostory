@@ -3,7 +3,7 @@ import { MapRef } from 'react-map-gl/maplibre'
 
 import { AppConfig } from '@/shared/constants/AppConfig'
 import useMapContext from '@/src/map/useMapContext'
-import useMapStore from '@/zustand/useMapStore'
+import useMapStore from '@/src/store/useMapStore'
 
 export interface handleMapMoveProps {
   longitude: number

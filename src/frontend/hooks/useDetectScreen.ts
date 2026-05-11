@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useResizeDetector } from 'react-resize-detector'
 
-import useMapStore from '@/zustand/useMapStore'
+import useMapStore from '@/src/store/useMapStore'
 
 const useDetectScreen = () => {
   const setViewportWidth = useMapStore(state => state.setViewportWidth)

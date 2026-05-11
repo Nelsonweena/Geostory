@@ -6,7 +6,7 @@ import useMapActions from '@/map/useMapActions'
 import useMapContext from '@/map/useMapContext'
 import { Place } from '@/shared/types/entityTypes'
 import CategoryMarkerCluster from '@/src/map/Markers/CategoryMarkerCluster'
-import useMapStore from '@/zustand/useMapStore'
+import useMapStore from '@/src/store/useMapStore'
 
 const MarkersContainer = () => {
   const { placesGroupedByCategory } = usePlaces()

@@ -5,7 +5,7 @@ import SidebarMenuItem from '@/frontend/components/layout/Sidebar/SidebarMenuIte
 import useCategories from '@/hooks/useCategories'
 import { CATEGORY_ID } from '@/shared/constants/constants'
 import useMapContext from '@/src/map/useMapContext'
-import useMapStore from '@/zustand/useMapStore'
+import useMapStore from '@/src/store/useMapStore'
 
 const sidebarClassName = 'absolute left-5 bottom-5 md:w-56 z-30'
 

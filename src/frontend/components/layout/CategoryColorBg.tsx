@@ -1,6 +1,6 @@
 import useCategories from '@/hooks/useCategories'
 import useAppTheme from '@/hooks/useTheme'
-import useMapStore from '@/zustand/useMapStore'
+import useMapStore from '@/src/store/useMapStore'
 
 interface CategoryColorBgProps extends React.HTMLAttributes<HTMLDivElement> {
   children?: React.ReactNode

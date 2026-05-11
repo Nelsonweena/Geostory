@@ -6,8 +6,8 @@ import useCategories from '@/hooks/useCategories'
 import useDetectScreen from '@/hooks/useDetectScreen'
 import { CATEGORY_ID } from '@/shared/constants/constants'
 import { Place } from '@/shared/types/entityTypes'
-import useMapStore from '@/zustand/useMapStore'
-import useSettingsStore from '@/zustand/useSettingsStore'
+import useMapStore from '@/src/store/useMapStore'
+import useSettingsStore from '@/src/store/useSettingsStore'
 
 const limitPlacesLength = (arr: Place[], length: number) => {
   if (arr.length > length) {
