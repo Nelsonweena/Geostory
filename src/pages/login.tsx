@@ -22,7 +22,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import {
   getFirebaseAuth,
   getFirebaseConfigError,
-  getFirebaseDb,
+  getFirebaseFirestore,
 } from '@/frontend/services/firebase'
 
 type AuthMode = 'signIn' | 'createAccount'
@@ -54,7 +54,7 @@ const getAuthMessage = (error: unknown) => {
 }
 
 const saveAccount = async (user: User, displayName?: string, isNewAccount = false) => {
-  const db = getFirebaseDb()
+  const db = getFirebaseFirestore()
   const accountRef = doc(db, 'accounts', user.uid)
 
   await setDoc(
@@ -143,10 +143,6 @@ const LoginPage = () => {
 
         setRequestState('success')
         setMessage('Account created. Redirecting...')
-
-        saveAccount(credential.user, displayName.trim(), true).catch(error => {
-          console.error('Failed to save account profile:', error)
-        })
 
         router.push('/')
 
@@ -283,6 +279,7 @@ const LoginPage = () => {
             >
               Sign in
             </button>
+
             <button
               type="button"
               className={`rounded-xl px-3 py-2 ${

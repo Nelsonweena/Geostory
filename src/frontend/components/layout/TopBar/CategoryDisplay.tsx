@@ -1,8 +1,8 @@
 import Icon from '@/frontend/components/layout/Icon'
 import IconCircle from '@/frontend/components/layout/IconCircle'
 import { AppConfig } from '@/shared/constants/AppConfig'
+import useMapStore from '@/src/store/useMapStore'
 import { ICON } from '@/theme/iconCollection'
-import useMapStore from '@/zustand/useMapStore'
 
 const CategoryDisplay = () => {
   const selectedCategory = useMapStore(state => state.selectedCategory)

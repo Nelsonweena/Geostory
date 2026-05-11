@@ -26,7 +26,7 @@
       "@/theme/*": ["./src/theme/*"],
       "@/types/*": ["./src/shared/types/*"],
       "@/constants/*": ["./src/shared/constants/*"],
-      "@/zustand/*": ["./src/zustand/*"],
+      "@/store/*": ["src/store/*"],
       "@/src/*": ["./src/*"],
       "@/root/*": ["./*"]
     },

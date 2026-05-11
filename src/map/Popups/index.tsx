@@ -3,7 +3,7 @@ import { useCallback } from 'react'
 import usePlaces from '@/hooks/usePlaces'
 import PopupItem from '@/src/map/Popups/PopupItem'
 import useMapActions from '@/src/map/useMapActions'
-import useMapStore from '@/zustand/useMapStore'
+import useMapStore from '@/src/store/useMapStore'
 
 const PopupsContainer = () => {
   const markerPopup = useMapStore(state => state.markerPopup)

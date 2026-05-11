@@ -4,7 +4,7 @@ import { theme } from '@/root/tailwind.config'
 import { AppConfig } from '@/shared/constants/AppConfig'
 import { CATEGORY_ID } from '@/shared/constants/constants'
 import { Category } from '@/shared/types/entityTypes'
-import useMapStore from '@/zustand/useMapStore'
+import useMapStore from '@/src/store/useMapStore'
 
 interface SidebarMenuItemProps {
   handleClick: (categoryId?: CATEGORY_ID) => void

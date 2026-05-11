@@ -14,8 +14,8 @@ import {
 import useMapActions from '@/map/useMapActions'
 import useMapContext from '@/map/useMapContext'
 import { CATEGORY_ID } from '@/shared/constants/constants'
-import useMapStore from '@/zustand/useMapStore'
-import useSettingsStore from '@/zustand/useSettingsStore'
+import useMapStore from '@/store/useMapStore'
+import useSettingsStore from '@/store/useSettingsStore'
 
 const Layers = () => {
   const { placesGroupedByCategory, markerCategoryIDs, getPlaceById } = usePlaces()
@@ -115,9 +115,6 @@ const Layers = () => {
         fly: false,
         zoom: map.getZoom(),
         offset: [0, -30],
-        mouseUpOnceCallback: () => {
-          setMarkerPopup(undefined)
-        },
       })
     },
     [getPlaceById, handleMapMove, map, placesGroupedByCategory, setMarkerPopup],

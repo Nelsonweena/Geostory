@@ -1,4 +1,4 @@
-import { Minimize2, X } from 'lucide-react'
+import { Check, MapPin, Minimize2, X } from 'lucide-react'
 import { Popup } from 'react-map-gl/maplibre'
 
 import Button from '@/frontend/components/layout/Button'
@@ -6,8 +6,9 @@ import IconCircle from '@/frontend/components/layout/IconCircle'
 import useCategories from '@/hooks/useCategories'
 import { AppConfig } from '@/shared/constants/AppConfig'
 import { Place } from '@/shared/types/entityTypes'
-import useMapStore from '@/zustand/useMapStore'
-import useSettingsStore from '@/zustand/useSettingsStore'
+import useMapStore from '@/store/useMapStore'
+import useMarkedLocationsStore from '@/store/useMarkedLocationsStore'
+import useSettingsStore from '@/store/useSettingsStore'
 
 interface PopupItemProps {
   place: Place
@@ -18,6 +19,10 @@ const PopupItem = ({ place, handleBackToCluster }: PopupItemProps) => {
   const { getCategoryById } = useCategories()
   const setMarkerPopup = useMapStore(state => state.setMarkerPopup)
   const markerSize = useSettingsStore(state => state.markerSize)
+  const activeUserId = useMarkedLocationsStore(state => state.activeUserId)
+  const togglePlaceMark = useMarkedLocationsStore(state => state.togglePlaceMark)
+  const isPlaceMarked = useMarkedLocationsStore(state => state.isPlaceMarked)
+  const locationMarked = isPlaceMarked(place.id)
   const currentCat = getCategoryById(place.category)
 
   if (!currentCat) return null
@@ -37,6 +42,7 @@ const PopupItem = ({ place, handleBackToCluster }: PopupItemProps) => {
         <div className="flex justify-center absolute w-full left-0 top-0 mt-4">
           <IconCircle path={`/${currentCat.iconMedium}`} size={markerSize} invert />
         </div>
+
         <Button
           className="absolute right-0 top-2 text-dark inline-block"
           onClick={() => setMarkerPopup(undefined)}
@@ -44,14 +50,37 @@ const PopupItem = ({ place, handleBackToCluster }: PopupItemProps) => {
         >
           <X size={AppConfig.ui.mapIconSizeSmall} />
         </Button>
+
         <div className="flex flex-row justify-center pt-3">
           <div
             className="flex flex-col justify-center p-3 text-center w-full"
             style={{ marginTop: markerSize }}
           >
             <h3 className="text-lg font-bold leading-none m-0">{place.headline}</h3>
-            <p className="text-darkLight m-0  mt-2">Population: {place.population}</p>
+            <p className="text-darkLight m-0 mt-2">Population: {place.population}</p>
+
             <div className="flex flex-row justify-between gap-2 mt-6">
+              <Button
+                className={
+                  activeUserId
+                    ? locationMarked
+                      ? 'bg-success text-white gap-2'
+                      : 'bg-darkLight text-white gap-2'
+                    : 'bg-darkLight text-white gap-2 opacity-50'
+                }
+                onClick={() => void togglePlaceMark(place)}
+                aria-pressed={locationMarked}
+                disabled={!activeUserId}
+                small
+              >
+                {locationMarked ? (
+                  <Check size={AppConfig.ui.mapIconSizeSmall} />
+                ) : (
+                  <MapPin size={AppConfig.ui.mapIconSizeSmall} />
+                )}
+                {!activeUserId ? 'Login to mark' : locationMarked ? 'Marked' : 'Mark'}
+              </Button>
+
               <Button
                 className="bg-warning text-white gap-2"
                 onClick={() => handleBackToCluster()}

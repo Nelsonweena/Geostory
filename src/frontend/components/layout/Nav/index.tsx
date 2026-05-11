@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import Icon from '@/frontend/components/layout/Icon'
 import { getFirebaseAuth, getFirebaseConfigError } from '@/frontend/services/firebase'
 import { AppConfig, NavVariant } from '@/shared/constants/AppConfig'
+import useMapStore from '@/store/useMapStore'
 import { ICON } from '@/theme/iconCollection'
-import useMapStore from '@/zustand/useMapStore'
 
 import NavItem from './NavItem'
 
@@ -46,13 +46,6 @@ const Nav = ({ variant = NavVariant.INTRO }: NavProps) => {
         href="/login"
         label={accountLabel}
         icon={<Icon size={AppConfig.ui.barIconSize} icon={ICON.USER} />}
-      />
-
-      <NavItem
-        href="https://github.com/richard-unterberg/maplibre-nextjs-ts-starter"
-        label="Fork on Github"
-        icon={<Icon size={AppConfig.ui.barIconSize} icon={ICON.GITHUB} />}
-        external
       />
     </ul>
   )

@@ -7,8 +7,8 @@ import { AppConfig } from '@/shared/constants/AppConfig'
 import { Bound, Category, Place } from '@/shared/types/entityTypes'
 import Marker from '@/src/map/Markers/Marker'
 import { handleMapMoveProps } from '@/src/map/useMapActions'
-import useMapStore from '@/zustand/useMapStore'
-import useSettingsStore from '@/zustand/useSettingsStore'
+import useMapStore from '@/src/store/useMapStore'
+import useSettingsStore from '@/src/store/useSettingsStore'
 
 interface CategoryClusterProps {
   places: Place[]
