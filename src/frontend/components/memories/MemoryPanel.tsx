@@ -1,6 +1,7 @@
 import { MapPinOff, Plus, Save, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import MemoryPhotoCarousel from '@/frontend/components/memories/MemoryPhotoCarousel'
 import { MarkedLocation } from '@/shared/types/markedLocation'
 import { Memory, MemoryPhoto } from '@/shared/types/memory'
 import useMarkedLocationsStore from '@/store/useMarkedLocationsStore'
@@ -546,18 +547,7 @@ const MemoryPanel = ({ markedLocation, onClose }: MemoryPanelProps) => {
               key={memory.id}
               className="overflow-hidden rounded-2xl border border-light bg-white shadow-sm"
             >
-              {!!memory.photos.length && (
-                <div className="flex snap-x gap-1 overflow-x-auto bg-dark">
-                  {memory.photos.map(photo => (
-                    <MemoryImage
-                      key={photo.id}
-                      className="h-56 min-w-full snap-center object-cover"
-                      photoUrl={photo.url}
-                      alt={photo.caption || memory.title}
-                    />
-                  ))}
-                </div>
-              )}
+              <MemoryPhotoCarousel photos={memory.photos} title={memory.title} />
 
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
