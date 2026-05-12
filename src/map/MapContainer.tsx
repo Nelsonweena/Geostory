@@ -11,14 +11,20 @@ import type {
 import Map from 'react-map-gl/maplibre'
 
 import SpaceBackground from '@/frontend/components/globe/SpaceBackground'
+import MarkedLocationMemoryMarkers from '@/frontend/components/memories/MarkedLocationMemoryMarkers'
+import MemoryPanel from '@/frontend/components/memories/MemoryPanel'
 import { getFirebaseAuth, getFirebaseConfigError } from '@/frontend/services/firebase'
 import useDetectScreen from '@/hooks/useDetectScreen'
-import MarkedLocationsLayer from '@/src/map/Layers/MarkedLocationsLayer'
+import MarkedLocationsLayer, {
+  MARKED_LOCATION_DOT_LAYER_ID,
+  MARKED_LOCATION_HALO_LAYER_ID,
+} from '@/src/map/Layers/MarkedLocationsLayer'
 import MapContextProvider from '@/src/map/MapContextProvider'
 import MapControls from '@/src/map/MapControls'
 import useMapContext from '@/src/map/useMapContext'
 import useMapStore from '@/store/useMapStore'
 import useMarkedLocationsStore from '@/store/useMarkedLocationsStore'
+import useMemoriesStore from '@/store/useMemoriesStore'
 
 type MarkLocationMode = 'closed' | 'choose' | 'click' | 'search'
 
@@ -54,19 +60,24 @@ const MapInner = () => {
   const setIsMapGlLoaded = useMapStore(state => state.setIsMapGlLoaded)
 
   const markLocation = useMarkedLocationsStore(state => state.markLocation)
-  const clearMarkedLocations = useMarkedLocationsStore(state => state.clearMarkedLocations)
   const setActiveUserId = useMarkedLocationsStore(state => state.setActiveUserId)
   const activeUserId = useMarkedLocationsStore(state => state.activeUserId)
   const allMarkedLocations = useMarkedLocationsStore(state => state.markedLocations)
   const markedLocationsError = useMarkedLocationsStore(state => state.markedLocationsError)
-  const isLoadingMarkedLocations = useMarkedLocationsStore(state => state.isLoadingMarkedLocations)
 
-  const markedLocationsCount = useMemo(
+  const setMemoriesActiveUserId = useMemoriesStore(state => state.setActiveUserId)
+  const selectedMarkedLocationId = useMemoriesStore(state => state.selectedMarkedLocationId)
+  const selectMarkedLocation = useMemoriesStore(state => state.selectMarkedLocation)
+
+  const activeMarkedLocations = useMemo(
     () =>
-      activeUserId
-        ? allMarkedLocations.filter(location => location.userId === activeUserId).length
-        : 0,
+      activeUserId ? allMarkedLocations.filter(location => location.userId === activeUserId) : [],
     [activeUserId, allMarkedLocations],
+  )
+
+  const selectedMarkedLocation = useMemo(
+    () => activeMarkedLocations.find(location => location.id === selectedMarkedLocationId),
+    [activeMarkedLocations, selectedMarkedLocationId],
   )
 
   const { setMap, map } = useMapContext()
@@ -76,6 +87,7 @@ const MapInner = () => {
     if (getFirebaseConfigError()) {
       setCurrentUser(null)
       setActiveUserId(undefined)
+      setMemoriesActiveUserId(undefined)
       return undefined
     }
 
@@ -84,8 +96,9 @@ const MapInner = () => {
     return onAuthStateChanged(auth, user => {
       setCurrentUser(user)
       setActiveUserId(user?.uid)
+      setMemoriesActiveUserId(user?.uid)
     })
-  }, [setActiveUserId])
+  }, [setActiveUserId, setMemoriesActiveUserId])
 
   const throttledSetViewState = useMemo(
     () => throttle((state: ViewState) => setThrottledViewState(state), 50),
@@ -159,17 +172,36 @@ const MapInner = () => {
   const onMapClick = useCallback(
     (evt: MapLayerMouseEvent) => {
       if (evt.originalEvent.defaultPrevented) return
+
+      const markedLocationFeature = evt.features?.find(feature => {
+        const layerId = feature.layer?.id
+        return layerId === MARKED_LOCATION_DOT_LAYER_ID || layerId === MARKED_LOCATION_HALO_LAYER_ID
+      })
+
+      const markedLocationId = markedLocationFeature?.properties?.id as string | undefined
+
+      if (markedLocationId) {
+        selectMarkedLocation(markedLocationId)
+        return
+      }
+
       if (markLocationMode !== 'click') return
       if (!requireLoggedInUser()) return
 
-      void markLocation({
+      markLocation({
         latitude: evt.lngLat.lat,
         longitude: evt.lngLat.lng,
-      })
+      }).catch(() => undefined)
 
       closeMarkLocationPanel()
     },
-    [closeMarkLocationPanel, markLocation, markLocationMode, requireLoggedInUser],
+    [
+      closeMarkLocationPanel,
+      markLocation,
+      markLocationMode,
+      requireLoggedInUser,
+      selectMarkedLocation,
+    ],
   )
 
   const handleOpenMarkLocationPanel = useCallback(() => {
@@ -194,11 +226,11 @@ const MapInner = () => {
       position => {
         const { latitude, longitude } = position.coords
 
-        void markLocation({
+        markLocation({
           latitude,
           longitude,
           headline: 'Current location',
-        })
+        }).catch(() => undefined)
 
         flyToMarkedLocation(latitude, longitude)
         setIsFindingCurrentLocation(false)
@@ -217,11 +249,11 @@ const MapInner = () => {
   }, [closeMarkLocationPanel, flyToMarkedLocation, markLocation, requireLoggedInUser])
 
   const handleSearchLocation = useCallback(async () => {
-    const query = locationSearchInput.trim()
+    const searchQuery = locationSearchInput.trim()
 
     if (!requireLoggedInUser()) return
 
-    if (!query) {
+    if (!searchQuery) {
       setLocationSearchError('Enter a location to search for.')
       return
     }
@@ -233,7 +265,7 @@ const MapInner = () => {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query,
+          searchQuery,
         )}&limit=5`,
       )
 
@@ -263,11 +295,11 @@ const MapInner = () => {
       const latitude = Number(result.lat)
       const longitude = Number(result.lon)
 
-      void markLocation({
+      markLocation({
         latitude,
         longitude,
         headline: result.display_name,
-      })
+      }).catch(() => undefined)
 
       flyToMarkedLocation(latitude, longitude)
       setLocationSearchInput('')
@@ -302,20 +334,29 @@ const MapInner = () => {
           onStyleData={forceGlobe}
           onMove={onMapMove}
           onClick={onMapClick}
+          interactiveLayerIds={[MARKED_LOCATION_DOT_LAYER_ID, MARKED_LOCATION_HALO_LAYER_ID]}
           style={{ width: viewportWidth, height: viewportHeight }}
           mapStyle="https://tiles.openfreemap.org/styles/liberty"
           projection={{ type: 'globe' } as any}
           renderWorldCopies={false}
-          dragRotate={true}
+          dragRotate
         >
           <MarkedLocationsLayer />
+
+          <MarkedLocationMemoryMarkers
+            markedLocations={activeMarkedLocations}
+            onSelectMarkedLocation={selectMarkedLocation}
+          />
+
+          <MemoryPanel
+            markedLocation={selectedMarkedLocation}
+            onClose={() => selectMarkedLocation(undefined)}
+          />
+
           <MapControls />
           <TopBar />
 
-          <div
-            className="absolute bottom-4 left-4 z-20 w-80 rounded-md bg-white/90 px-3 py-3 text-sm text-dark shadow-md"
-            onClick={event => event.stopPropagation()}
-          >
+          <div className="absolute bottom-4 left-4 z-20 w-80 rounded-md bg-white/90 px-3 py-3 text-sm text-dark shadow-md">
             <button
               className="w-full rounded bg-dark px-3 py-2 font-semibold text-white"
               type="button"
@@ -389,9 +430,10 @@ const MapInner = () => {
 
             {markLocationMode === 'search' && (
               <div className="mt-3 flex flex-col gap-2">
-                <label className="flex flex-col gap-1">
+                <label className="flex flex-col gap-1" htmlFor="location-search-input">
                   Search location
                   <input
+                    id="location-search-input"
                     className="rounded border border-darkLight px-2 py-1"
                     placeholder="Example: Tokyo, Japan"
                     type="text"
@@ -400,7 +442,7 @@ const MapInner = () => {
                     onKeyDown={event => {
                       if (event.key === 'Enter') {
                         event.preventDefault()
-                        void handleSearchLocation()
+                        handleSearchLocation().catch(() => undefined)
                       }
                     }}
                   />
@@ -411,7 +453,9 @@ const MapInner = () => {
                     className="flex-1 rounded bg-dark px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
                     type="button"
                     disabled={isSearchingLocation}
-                    onClick={() => void handleSearchLocation()}
+                    onClick={() => {
+                      handleSearchLocation().catch(() => undefined)
+                    }}
                   >
                     {isSearchingLocation ? 'Searching...' : 'Search'}
                   </button>
@@ -443,17 +487,6 @@ const MapInner = () => {
                 )}
               </div>
             )}
-
-            <button
-              className="mt-3 w-full rounded bg-dark px-2 py-1 text-white disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!markedLocationsCount || isLoadingMarkedLocations}
-              type="button"
-              onClick={() => void clearMarkedLocations()}
-            >
-              {isLoadingMarkedLocations
-                ? 'Loading marks...'
-                : `Clear my marks (${markedLocationsCount})`}
-            </button>
           </div>
         </Map>
       </div>

@@ -7,41 +7,17 @@ import { MarkLocationInput, MarkedLocation } from '@/shared/types/markedLocation
 
 let unsubscribeFromMarkedLocations: (() => void) | undefined
 
-const buildMarkId = (latitude: number, longitude: number) =>
-  `${latitude.toFixed(6)}-${longitude.toFixed(6)}-${Date.now()}`
-
-const formatCoordinate = (value: number) => value.toFixed(6)
+const buildMarkedLocationId = () =>
+  `marked-location-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const getUserMarkedLocationsCollection = (userId: string) =>
   collection(getFirebaseFirestore(), 'users', userId, 'markedLocations')
 
-const getUserMarkedLocationDoc = (userId: string, markId: string) =>
-  doc(getFirebaseFirestore(), 'users', userId, 'markedLocations', markId)
+const getUserMarkedLocationDoc = (userId: string, markedLocationId: string) =>
+  doc(getFirebaseFirestore(), 'users', userId, 'markedLocations', markedLocationId)
 
-const toMarkedLocation = (
-  userId: string,
-  { latitude, longitude, headline }: MarkLocationInput,
-): MarkedLocation => ({
-  id: buildMarkId(latitude, longitude),
-  userId,
-  headline:
-    headline || `Marked location (${formatCoordinate(latitude)}, ${formatCoordinate(longitude)})`,
-  latitude,
-  longitude,
-  markedAt: new Date().toISOString(),
-})
-
-const toMarkedPlace = (userId: string, place: Place): MarkedLocation => ({
-  id: `place-${place.id}`,
-  userId,
-  placeId: place.id,
-  headline: place.headline,
-  latitude: place.latitude,
-  longitude: place.longitude,
-  category: place.category,
-  population: place.population,
-  markedAt: new Date().toISOString(),
-})
+const getMarkedLocationHeadline = (input: MarkLocationInput) =>
+  input.headline || `Marked location (${input.latitude.toFixed(6)}, ${input.longitude.toFixed(6)})`
 
 interface MarkedLocationsStoreValues {
   activeUserId?: string
@@ -50,12 +26,11 @@ interface MarkedLocationsStoreValues {
   markedLocationsError?: string
   setActiveUserId: (userId?: string) => void
   subscribeToUserMarkedLocations: (userId?: string) => void
-  markLocation: (location: MarkLocationInput) => Promise<void>
-  markPlace: (place: Place) => Promise<void>
-  unmarkLocation: (markId: MarkedLocation['id']) => Promise<void>
+  markLocation: (input: MarkLocationInput) => Promise<void>
+  deleteMarkedLocation: (markedLocationId: MarkedLocation['id']) => Promise<void>
+  clearMarkedLocations: () => Promise<void>
   togglePlaceMark: (place: Place) => Promise<void>
   isPlaceMarked: (placeId: Place['id']) => boolean
-  clearMarkedLocations: () => Promise<void>
 }
 
 const useMarkedLocationsStore = create<MarkedLocationsStoreValues>()((set, get) => ({
@@ -91,20 +66,28 @@ const useMarkedLocationsStore = create<MarkedLocationsStoreValues>()((set, get) 
       return
     }
 
-    set({
-      isLoadingMarkedLocations: true,
-      markedLocationsError: undefined,
-    })
-
-    const markedLocationsQuery = query(getUserMarkedLocationsCollection(userId))
+    set({ isLoadingMarkedLocations: true, markedLocationsError: undefined })
 
     unsubscribeFromMarkedLocations = onSnapshot(
-      markedLocationsQuery,
+      query(getUserMarkedLocationsCollection(userId)),
       snapshot => {
-        const markedLocations = snapshot.docs.map(documentSnapshot => ({
-          id: documentSnapshot.id,
-          ...documentSnapshot.data(),
-        })) as MarkedLocation[]
+        const markedLocations = snapshot.docs
+          .map(
+            documentSnapshot =>
+              ({
+                id: documentSnapshot.id,
+                ...documentSnapshot.data(),
+              } as MarkedLocation),
+          )
+          .filter(
+            location => Number.isFinite(location.latitude) && Number.isFinite(location.longitude),
+          )
+
+        markedLocations.sort((first, second) => {
+          const firstDate = first.markedAt || ''
+          const secondDate = second.markedAt || ''
+          return secondDate.localeCompare(firstDate)
+        })
 
         set({
           markedLocations,
@@ -122,7 +105,7 @@ const useMarkedLocationsStore = create<MarkedLocationsStoreValues>()((set, get) 
     )
   },
 
-  markLocation: async location => {
+  markLocation: async input => {
     const userId = get().activeUserId
 
     if (!userId) {
@@ -130,59 +113,63 @@ const useMarkedLocationsStore = create<MarkedLocationsStoreValues>()((set, get) 
       return
     }
 
-    const markedLocation = toMarkedLocation(userId, location)
+    const markedLocationId = buildMarkedLocationId()
 
-    await setDoc(getUserMarkedLocationDoc(userId, markedLocation.id), markedLocation)
+    const markedLocation: MarkedLocation = {
+      id: markedLocationId,
+      userId,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      headline: getMarkedLocationHeadline(input),
+      markedAt: new Date().toISOString(),
+    }
+
+    await setDoc(getUserMarkedLocationDoc(userId, markedLocationId), markedLocation)
   },
 
-  markPlace: async place => {
+  deleteMarkedLocation: async markedLocationId => {
     const userId = get().activeUserId
 
     if (!userId) {
-      set({ markedLocationsError: 'Log in to mark locations.' })
+      set({ markedLocationsError: 'Log in to delete marked locations.' })
       return
     }
 
-    const placeAlreadyMarkedByUser = get().markedLocations.some(
-      location => location.userId === userId && location.placeId === place.id,
-    )
-
-    if (placeAlreadyMarkedByUser) return
-
-    const markedPlace = toMarkedPlace(userId, place)
-
-    await setDoc(getUserMarkedLocationDoc(userId, markedPlace.id), markedPlace)
-  },
-
-  unmarkLocation: async markId => {
-    const userId = get().activeUserId
-
-    if (!userId) {
-      set({ markedLocationsError: 'Log in to update marked locations.' })
-      return
-    }
-
-    await deleteDoc(getUserMarkedLocationDoc(userId, markId))
+    await deleteDoc(getUserMarkedLocationDoc(userId, markedLocationId))
   },
 
   togglePlaceMark: async place => {
     const userId = get().activeUserId
 
     if (!userId) {
-      set({ markedLocationsError: 'Log in to mark locations.' })
+      set({ markedLocationsError: 'Log in to mark places.' })
       return
     }
 
-    const markedPlace = get().markedLocations.find(
-      location => location.userId === userId && location.placeId === place.id,
+    const existingMarkedLocation = get().markedLocations.find(
+      location => location.placeId === place.id && location.userId === userId,
     )
 
-    if (markedPlace) {
-      await get().unmarkLocation(markedPlace.id)
+    if (existingMarkedLocation) {
+      await deleteDoc(getUserMarkedLocationDoc(userId, existingMarkedLocation.id))
       return
     }
 
-    await get().markPlace(place)
+    const markedLocationId = buildMarkedLocationId()
+
+    const markedLocation: MarkedLocation = {
+      id: markedLocationId,
+      userId,
+      placeId: place.id,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      headline: place.headline,
+      category: place.category,
+      population: place.population,
+      markedAt: new Date().toISOString(),
+    }
+
+    await setDoc(getUserMarkedLocationDoc(userId, markedLocationId), markedLocation)
   },
 
   isPlaceMarked: placeId => {
