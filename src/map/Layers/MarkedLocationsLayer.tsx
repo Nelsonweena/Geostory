@@ -4,7 +4,9 @@ import { Layer, Source } from 'react-map-gl/maplibre'
 import { theme } from '@/root/tailwind.config'
 import useMarkedLocationsStore from '@/store/useMarkedLocationsStore'
 
-const MARKED_LOCATIONS_SOURCE_ID = 'marked-locations-source'
+export const MARKED_LOCATIONS_SOURCE_ID = 'marked-locations-source'
+export const MARKED_LOCATION_HALO_LAYER_ID = 'marked-location-halo'
+export const MARKED_LOCATION_DOT_LAYER_ID = 'marked-location-dot'
 
 const MarkedLocationsLayer = () => {
   const activeUserId = useMarkedLocationsStore(state => state.activeUserId)
@@ -37,7 +39,7 @@ const MarkedLocationsLayer = () => {
   return (
     <Source id={MARKED_LOCATIONS_SOURCE_ID} type="geojson" data={markedLocationsData}>
       <Layer
-        id="marked-location-halo"
+        id={MARKED_LOCATION_HALO_LAYER_ID}
         type="circle"
         source={MARKED_LOCATIONS_SOURCE_ID}
         paint={{
@@ -48,7 +50,7 @@ const MarkedLocationsLayer = () => {
       />
 
       <Layer
-        id="marked-location-dot"
+        id={MARKED_LOCATION_DOT_LAYER_ID}
         type="circle"
         source={MARKED_LOCATIONS_SOURCE_ID}
         paint={{
