@@ -6,6 +6,8 @@ export type MarkedLocation = {
   userId: string
   placeId?: Place['id']
   headline: string
+  country?: string
+  region?: string
   latitude: number
   longitude: number
   category?: CATEGORY_ID
@@ -17,4 +19,6 @@ export type MarkLocationInput = {
   latitude: number
   longitude: number
   headline?: string
+  country?: string
+  region?: string
 }

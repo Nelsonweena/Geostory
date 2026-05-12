@@ -12,6 +12,7 @@ import Map from 'react-map-gl/maplibre'
 
 import SpaceBackground from '@/frontend/components/globe/SpaceBackground'
 import MarkedLocationMemoryMarkers from '@/frontend/components/memories/MarkedLocationMemoryMarkers'
+import MemoryFeed from '@/frontend/components/memories/MemoryFeed'
 import MemoryPanel from '@/frontend/components/memories/MemoryPanel'
 import { getFirebaseAuth, getFirebaseConfigError } from '@/frontend/services/firebase'
 import useDetectScreen from '@/hooks/useDetectScreen'
@@ -33,15 +34,23 @@ type LocationSearchResult = {
   display_name: string
   lat: string
   lon: string
+  address?: {
+    country?: string
+    state?: string
+    province?: string
+    region?: string
+    county?: string
+    city?: string
+    town?: string
+    village?: string
+  }
 }
 
-/** error handle */
 const onMapError = (evt: ErrorEvent) => {
   const { error } = evt
   throw new Error(`Map error: ${error.message}`)
 }
 
-// bundle splitting
 const TopBar = dynamic(() => import('@/frontend/components/layout/TopBar'))
 
 const MapInner = () => {
@@ -53,6 +62,9 @@ const MapInner = () => {
   const [currentLocationError, setCurrentLocationError] = useState<string | undefined>()
   const [isFindingCurrentLocation, setIsFindingCurrentLocation] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+
+  const [isMemoryFeedOpen, setIsMemoryFeedOpen] = useState(false)
+  const [isMemoryFeedVisible, setIsMemoryFeedVisible] = useState(false)
 
   const setViewState = useMapStore(state => state.setViewState)
   const setThrottledViewState = useMapStore(state => state.setThrottledViewState)
@@ -149,6 +161,59 @@ const MapInner = () => {
     [map],
   )
 
+  const openMemoryFeed = useCallback(() => {
+    selectMarkedLocation(undefined)
+    setIsMemoryFeedVisible(true)
+
+    requestAnimationFrame(() => {
+      setIsMemoryFeedOpen(true)
+    })
+  }, [selectMarkedLocation])
+
+  const closeMemoryFeed = useCallback(() => {
+    setIsMemoryFeedOpen(false)
+
+    window.setTimeout(() => {
+      setIsMemoryFeedVisible(false)
+    }, 300)
+  }, [])
+
+  const toggleMemoryFeed = useCallback(() => {
+    if (isMemoryFeedVisible) {
+      closeMemoryFeed()
+      return
+    }
+
+    openMemoryFeed()
+  }, [closeMemoryFeed, isMemoryFeedVisible, openMemoryFeed])
+
+  const handleSelectMarkedLocation = useCallback(
+    (markedLocationId: string) => {
+      closeMemoryFeed()
+
+      window.setTimeout(
+        () => {
+          selectMarkedLocation(markedLocationId)
+        },
+        isMemoryFeedVisible ? 300 : 0,
+      )
+    },
+    [closeMemoryFeed, isMemoryFeedVisible, selectMarkedLocation],
+  )
+
+  const handleViewMemoryOnGlobe = useCallback(
+    (markedLocationId: string) => {
+      const location = activeMarkedLocations.find(item => item.id === markedLocationId)
+
+      if (!location) return
+
+      selectMarkedLocation(undefined)
+      flyToMarkedLocation(location.latitude, location.longitude)
+      closeMemoryFeed()
+    },
+    [activeMarkedLocations, closeMemoryFeed, flyToMarkedLocation, selectMarkedLocation],
+  )
+
   const closeMarkLocationPanel = useCallback(() => {
     setMarkLocationMode('closed')
     setLocationSearchError(undefined)
@@ -181,6 +246,7 @@ const MapInner = () => {
       const markedLocationId = markedLocationFeature?.properties?.id as string | undefined
 
       if (markedLocationId) {
+        closeMemoryFeed()
         selectMarkedLocation(markedLocationId)
         return
       }
@@ -197,6 +263,7 @@ const MapInner = () => {
     },
     [
       closeMarkLocationPanel,
+      closeMemoryFeed,
       markLocation,
       markLocationMode,
       requireLoggedInUser,
@@ -205,10 +272,12 @@ const MapInner = () => {
   )
 
   const handleOpenMarkLocationPanel = useCallback(() => {
+    closeMemoryFeed()
+    selectMarkedLocation(undefined)
     setMarkLocationMode(currentMode => (currentMode === 'closed' ? 'choose' : 'closed'))
     setLocationSearchError(undefined)
     setCurrentLocationError(undefined)
-  }, [])
+  }, [closeMemoryFeed, selectMarkedLocation])
 
   const handleUseCurrentLocation = useCallback(() => {
     setCurrentLocationError(undefined)
@@ -264,7 +333,7 @@ const MapInner = () => {
 
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(
           searchQuery,
         )}&limit=5`,
       )
@@ -295,10 +364,21 @@ const MapInner = () => {
       const latitude = Number(result.lat)
       const longitude = Number(result.lon)
 
+      const region =
+        result.address?.state ||
+        result.address?.province ||
+        result.address?.region ||
+        result.address?.county ||
+        result.address?.city ||
+        result.address?.town ||
+        result.address?.village
+
       markLocation({
         latitude,
         longitude,
         headline: result.display_name,
+        country: result.address?.country,
+        region,
       }).catch(() => undefined)
 
       flyToMarkedLocation(latitude, longitude)
@@ -345,7 +425,7 @@ const MapInner = () => {
 
           <MarkedLocationMemoryMarkers
             markedLocations={activeMarkedLocations}
-            onSelectMarkedLocation={selectMarkedLocation}
+            onSelectMarkedLocation={handleSelectMarkedLocation}
           />
 
           <MemoryPanel
@@ -353,8 +433,18 @@ const MapInner = () => {
             onClose={() => selectMarkedLocation(undefined)}
           />
 
+          {isMemoryFeedVisible && (
+            <MemoryFeed
+              isOpen={isMemoryFeedOpen}
+              markedLocations={activeMarkedLocations}
+              onClose={closeMemoryFeed}
+              onViewOnGlobe={handleViewMemoryOnGlobe}
+            />
+          )}
+
           <MapControls />
-          <TopBar />
+
+          <TopBar isMemoryFeedOpen={isMemoryFeedVisible} onOpenMemoryFeed={toggleMemoryFeed} />
 
           <div className="absolute bottom-4 left-4 z-20 w-80 rounded-md bg-white/90 px-3 py-3 text-sm text-dark shadow-md">
             <button
@@ -500,7 +590,6 @@ const MapInner = () => {
   )
 }
 
-// context pass through
 const MapContainer = () => (
   <MapContextProvider>
     <MapInner />

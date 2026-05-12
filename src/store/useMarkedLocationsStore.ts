@@ -121,6 +121,8 @@ const useMarkedLocationsStore = create<MarkedLocationsStoreValues>()((set, get) 
       latitude: input.latitude,
       longitude: input.longitude,
       headline: getMarkedLocationHeadline(input),
+      country: input.country,
+      region: input.region,
       markedAt: new Date().toISOString(),
     }
 
