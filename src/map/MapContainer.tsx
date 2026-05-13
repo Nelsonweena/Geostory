@@ -344,6 +344,13 @@ const MapInner = () => {
       if (nextValue) {
         closeMemoryFeed()
         selectMarkedLocation(undefined)
+
+        // Close Mark a location when Visual Mode opens
+        setMarkLocationMode('closed')
+        setLocationSearchError(undefined)
+        setCurrentLocationError(undefined)
+        resetLocationSearch()
+
         setSelectedTimelineKey(timelineItems[0]?.key || '')
       } else {
         setIsTimelinePlaying(false)
@@ -354,7 +361,7 @@ const MapInner = () => {
 
       return nextValue
     })
-  }, [closeMemoryFeed, selectMarkedLocation, timelineItems])
+  }, [closeMemoryFeed, resetLocationSearch, selectMarkedLocation, timelineItems])
 
   const handleRestartTimeline = useCallback(() => {
     setSelectedTimelineKey(timelineItems[0]?.key || '')
@@ -362,7 +369,15 @@ const MapInner = () => {
   }, [timelineItems])
 
   const handleGenerateTripStory = useCallback(async () => {
-    if (!visibleTimelineMemories.length) {
+    const activeMarkedLocationIds = new Set(activeMarkedLocations.map(location => location.id))
+
+    const tripMemories = memories
+      .filter(memory => activeMarkedLocationIds.has(memory.markedLocationId))
+      .sort((firstMemory, secondMemory) => {
+        return getMemoryDate(firstMemory).getTime() - getMemoryDate(secondMemory).getTime()
+      })
+
+    if (!tripMemories.length) {
       setAiTripStoryError('Add memories before generating a trip story.')
       return
     }
@@ -377,7 +392,7 @@ const MapInner = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          memories: visibleTimelineMemories,
+          memories: tripMemories,
           locations: activeMarkedLocations,
         }),
       })
@@ -407,7 +422,7 @@ const MapInner = () => {
     } finally {
       setIsGeneratingTripStory(false)
     }
-  }, [activeMarkedLocations, visibleTimelineMemories])
+  }, [activeMarkedLocations, memories])
 
   const onMapClick = useCallback(
     (evt: MapLayerMouseEvent) => {
@@ -449,6 +464,14 @@ const MapInner = () => {
   const handleOpenMarkLocationPanel = useCallback(() => {
     closeMemoryFeed()
     selectMarkedLocation(undefined)
+
+    // Close Visual Mode when Mark a location opens
+    setIsVisualMode(false)
+    setIsTimelinePlaying(false)
+    setIsRouteRepeating(false)
+    setAiTripStory('')
+    setAiTripStoryError(undefined)
+
     setMarkLocationMode(currentMode => (currentMode === 'closed' ? 'choose' : 'closed'))
     setLocationSearchError(undefined)
     setCurrentLocationError(undefined)
@@ -526,7 +549,9 @@ const MapInner = () => {
 
       setLocationSearchResults(results)
     } catch {
-      setLocationSearchError('Unable to search for that location right now.')
+      setLocationSearchError(
+        'Location search is currently unavailable. Try again in a moment, or click directly on the map to choose a location.',
+      )
     } finally {
       setIsSearchingLocation(false)
     }
@@ -569,6 +594,10 @@ const MapInner = () => {
       resetLocationSearch,
     ],
   )
+
+  const markLocationPanelClassName = `absolute bottom-4 left-4 z-20 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md bg-white/95 px-6 py-5 text-base text-dark shadow-md ${
+    markLocationMode === 'search' || isVisualMode ? 'w-[42rem]' : 'w-[34rem]'
+  }`
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black space-bg" ref={viewportRef}>
@@ -633,7 +662,7 @@ const MapInner = () => {
 
           <TopBar isMemoryFeedOpen={isMemoryFeedVisible} onOpenMemoryFeed={toggleMemoryFeed} />
 
-          <div className="absolute bottom-4 left-4 z-20 w-80 rounded-md bg-white/90 px-3 py-3 text-sm text-dark shadow-md">
+          <div className={markLocationPanelClassName}>
             <VisualModePanel
               isVisualMode={isVisualMode}
               onToggleVisualMode={handleToggleVisualMode}
@@ -730,7 +759,7 @@ const MapInner = () => {
                   Search location
                   <input
                     id="location-search-input"
-                    className="rounded border border-darkLight px-2 py-1"
+                    className="rounded border border-darkLight px-3 py-2 text-base"
                     placeholder="Example: Tokyo, Japan"
                     type="text"
                     value={locationSearchInput}
@@ -768,11 +797,11 @@ const MapInner = () => {
                 {locationSearchError && <p className="m-0 text-warning">{locationSearchError}</p>}
 
                 {!!locationSearchResults.length && (
-                  <div className="mt-1 max-h-52 overflow-y-auto rounded border border-darkLight bg-white">
+                  <div className="mt-2 max-h-[50vh] min-h-[50vh] overflow-y-auto rounded border border-darkLight bg-white">
                     {locationSearchResults.map(result => (
                       <button
                         key={result.place_id}
-                        className="block w-full border-b border-darkLight px-2 py-2 text-left text-dark last:border-b-0 hover:bg-mapBg"
+                        className="block w-full border-b border-darkLight px-3 py-3 text-left text-base leading-snug text-dark last:border-b-0 hover:bg-mapBg"
                         type="button"
                         onClick={() => handleMarkSearchResult(result)}
                       >
