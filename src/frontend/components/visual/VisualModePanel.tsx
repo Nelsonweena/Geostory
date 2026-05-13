@@ -108,9 +108,9 @@ const VisualModePanel = ({
   const storySections = useMemo(() => parseAiTripStory(aiTripStory), [aiTripStory])
 
   return (
-    <div className="mb-3">
+    <div className="mb-4 text-base">
       <button
-        className={`w-full rounded px-3 py-2 font-semibold transition ${
+        className={`w-full rounded px-4 py-3 text-base font-semibold transition ${
           isVisualMode ? 'bg-warning text-dark' : 'bg-dark text-white hover:bg-darkLight'
         }`}
         type="button"
@@ -120,19 +120,19 @@ const VisualModePanel = ({
       </button>
 
       {isVisualMode && (
-        <div className="mt-3 rounded bg-warning/20 p-2">
-          <p className="m-0 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-dark">
-            <Sparkles size={14} /> Timeline mode
+        <div className="mt-4 rounded bg-warning/20 p-4">
+          <p className="m-0 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-dark">
+            <Sparkles size={16} /> Timeline mode
           </p>
 
-          <p className="m-0 mt-1 text-xs text-dark/70">
+          <p className="m-0 mt-2 text-sm leading-relaxed text-dark/80">
             Filter memories by month, animate yellow route lines, and generate an AI trip story.
           </p>
 
-          <div className="mt-3">
-            <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-dark/70">
-              <span className="flex items-center gap-1">
-                <CalendarDays size={13} /> Timeline
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between gap-2 text-sm font-semibold text-dark/70">
+              <span className="flex items-center gap-2">
+                <CalendarDays size={15} /> Timeline
               </span>
               <span>
                 {visibleCount}/{totalCount}
@@ -152,41 +152,41 @@ const VisualModePanel = ({
               }}
             />
 
-            <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+            <div className="mt-2 flex items-center justify-between gap-2 text-sm">
               <span className="truncate font-bold text-dark">
                 {selectedItem ? selectedItem.label : 'Add dated memories'}
               </span>
-              <span className="shrink-0 rounded bg-white/70 px-2 py-1 font-semibold text-dark/70">
+              <span className="shrink-0 rounded bg-white/70 px-3 py-1 font-semibold text-dark/70">
                 {selectedItem ? `${selectedItem.count}` : '0'}
               </span>
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
+          <div className="mt-4 grid grid-cols-[1fr_auto_auto] gap-3">
             <button
-              className="rounded bg-darkLight px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded bg-darkLight px-4 py-3 text-base text-white disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               disabled={!timelineItems.length}
               onClick={onTogglePlay}
             >
               <span className="inline-flex items-center justify-center gap-2">
-                {isPlaying ? <Pause size={15} /> : <Play size={15} />}
+                {isPlaying ? <Pause size={17} /> : <Play size={17} />}
                 {isPlaying ? 'Pause' : 'Play'}
               </span>
             </button>
 
             <button
-              className="rounded bg-darkLight px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded bg-darkLight px-4 py-3 text-white disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               disabled={!timelineItems.length}
               onClick={onRestart}
               aria-label="Restart timeline"
             >
-              <FastForward size={16} />
+              <FastForward size={18} />
             </button>
 
             <button
-              className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`rounded px-4 py-3 disabled:cursor-not-allowed disabled:opacity-50 ${
                 isRepeating ? 'bg-warning text-dark' : 'bg-darkLight text-white'
               }`}
               type="button"
@@ -195,36 +195,36 @@ const VisualModePanel = ({
               aria-label={isRepeating ? 'Turn repeat off' : 'Turn repeat on'}
               title={isRepeating ? 'Repeat on' : 'Repeat off'}
             >
-              <Repeat size={16} />
+              <Repeat size={18} />
             </button>
           </div>
 
           <button
-            className="mt-3 w-full rounded bg-dark px-3 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-4 w-full rounded bg-dark px-4 py-3 text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             disabled={!visibleCount || isGeneratingTripStory}
             onClick={onGenerateTripStory}
           >
             <span className="inline-flex items-center justify-center gap-2">
               {isGeneratingTripStory ? (
-                <Loader2 size={15} className="animate-spin" />
+                <Loader2 size={17} className="animate-spin" />
               ) : (
-                <Wand2 size={15} />
+                <Wand2 size={17} />
               )}
               {isGeneratingTripStory ? 'Writing trip story...' : 'Generate AI trip story'}
             </span>
           </button>
 
           {aiTripStoryError && (
-            <p className="m-0 mt-2 rounded bg-white/70 p-2 text-xs font-semibold text-dark">
+            <p className="m-0 mt-3 rounded bg-white/70 p-3 text-sm font-semibold leading-relaxed text-dark">
               {aiTripStoryError}
             </p>
           )}
 
           {!!storySections.length && (
-            <div className="mt-3 max-h-96 space-y-3 overflow-y-auto rounded bg-white/70 p-2 shadow-inner">
-              <p className="m-0 flex items-center gap-1 px-1 text-xs font-black uppercase tracking-[0.16em] text-dark">
-                <Sparkles size={13} /> AI trip story
+            <div className="mt-4 max-h-[55vh] space-y-4 overflow-y-auto rounded bg-white/70 p-3 shadow-inner">
+              <p className="m-0 flex items-center gap-2 px-1 text-sm font-black uppercase tracking-[0.18em] text-dark">
+                <Sparkles size={15} /> AI trip story
               </p>
 
               {storySections.map((section, index) => {
@@ -234,7 +234,7 @@ const VisualModePanel = ({
                       key={`${section.type}-${index}`}
                       className="overflow-hidden rounded border border-warning/70 bg-white shadow-sm"
                     >
-                      <p className="m-0 px-3 py-3 text-xs leading-relaxed text-dark">
+                      <p className="m-0 px-4 py-4 text-base leading-relaxed text-dark">
                         {section.body}
                       </p>
                     </section>
@@ -246,13 +246,13 @@ const VisualModePanel = ({
                     key={`${section.header || 'country'}-${index}`}
                     className="overflow-hidden rounded border border-warning/70 bg-white shadow-sm"
                   >
-                    <div className="border-b border-warning/50 bg-warning px-3 py-2">
-                      <h4 className="m-0 text-sm font-black uppercase tracking-[0.22em] text-dark">
+                    <div className="border-b border-warning/50 bg-warning px-4 py-3">
+                      <h4 className="m-0 text-base font-black uppercase tracking-[0.25em] text-dark">
                         {section.header || 'MEMORY STOP'}
                       </h4>
                     </div>
 
-                    <p className="m-0 px-3 py-3 text-xs leading-relaxed text-dark">
+                    <p className="m-0 px-4 py-4 text-base leading-relaxed text-dark">
                       {section.body}
                     </p>
                   </section>

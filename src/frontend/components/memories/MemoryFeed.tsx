@@ -231,7 +231,7 @@ const MemoryFeed = ({ isOpen, markedLocations, onClose, onViewOnGlobe }: MemoryF
 
   return (
     <aside
-      className={`absolute right-4 top-24 z-30 flex max-h-[calc(100vh-8rem)] w-[500px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-3xl border border-[#D6DEE8] bg-white text-dark shadow-2xl transition-all duration-300 ease-out ${
+      className={`absolute right-4 top-24 z-30 flex max-h-[calc(100vh-8rem)] w-[44rem] max-w-[90vw] flex-col overflow-hidden rounded-3xl border border-[#D6DEE8] bg-white text-dark shadow-2xl transition-all duration-300 ease-out ${
         isOpen ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0'
       }`}
     >
