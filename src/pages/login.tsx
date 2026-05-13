@@ -144,7 +144,7 @@ const LoginPage = () => {
         setRequestState('success')
         setMessage('Account created. Redirecting...')
 
-        router.push('/')
+        router.push('/map')
 
         return
       }
@@ -158,7 +158,7 @@ const LoginPage = () => {
         console.error('Failed to save account profile:', error)
       })
 
-      router.push('/')
+      router.push('/map')
     } catch (error) {
       setRequestState('error')
       setMessage(getAuthMessage(error))
@@ -194,7 +194,7 @@ const LoginPage = () => {
         console.error('Failed to save account profile:', error)
       })
 
-      router.push('/')
+      router.push('/map')
     } catch (error) {
       setRequestState('error')
       setMessage(getAuthMessage(error))
