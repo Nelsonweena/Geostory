@@ -6,6 +6,8 @@ import useMemoriesStore, { getLocalMemoryPhotoUrl } from '@/store/useMemoriesSto
 
 type MarkedLocationMemoryMarkersProps = {
   markedLocations: MarkedLocation[]
+  visibleMarkedLocationIds?: Set<MarkedLocation['id']>
+  isVisualMode?: boolean
   onSelectMarkedLocation: (markedLocationId: MarkedLocation['id']) => void
 }
 
@@ -55,6 +57,8 @@ const MarkerMemoryImage = ({ photoUrl }: MarkerMemoryImageProps) => {
 
 const MarkedLocationMemoryMarkers = ({
   markedLocations,
+  visibleMarkedLocationIds,
+  isVisualMode = false,
   onSelectMarkedLocation,
 }: MarkedLocationMemoryMarkersProps) => {
   const memoriesByMarkedLocationId = useMemoriesStore(state => state.memoriesByMarkedLocationId)
@@ -62,6 +66,8 @@ const MarkedLocationMemoryMarkers = ({
   return (
     <>
       {markedLocations.map(location => {
+        if (visibleMarkedLocationIds && !visibleMarkedLocationIds.has(location.id)) return null
+
         const memories = memoriesByMarkedLocationId[location.id] || []
         const photos = memories.flatMap(memory => memory.photos).slice(0, 3)
 
@@ -76,7 +82,11 @@ const MarkedLocationMemoryMarkers = ({
             offset={[0, -16]}
           >
             <button
-              className="group flex -translate-y-2 items-center rounded-2xl bg-white p-1 shadow-xl ring-2 ring-warning transition hover:scale-105"
+              className={`group flex -translate-y-2 items-center rounded-2xl bg-white p-1 shadow-xl ring-2 transition hover:scale-105 ${
+                isVisualMode
+                  ? 'animate-[pulse_1.7s_ease-in-out_infinite] ring-white shadow-warning/40'
+                  : 'ring-warning'
+              }`}
               type="button"
               onClick={event => {
                 event.stopPropagation()

@@ -2,20 +2,37 @@ import { useMemo } from 'react'
 import { Layer, Source } from 'react-map-gl/maplibre'
 
 import { theme } from '@/root/tailwind.config'
+import { MarkedLocation } from '@/shared/types/markedLocation'
 import useMarkedLocationsStore from '@/store/useMarkedLocationsStore'
 
 export const MARKED_LOCATIONS_SOURCE_ID = 'marked-locations-source'
 export const MARKED_LOCATION_HALO_LAYER_ID = 'marked-location-halo'
 export const MARKED_LOCATION_DOT_LAYER_ID = 'marked-location-dot'
 
-const MarkedLocationsLayer = () => {
+type MarkedLocationsLayerProps = {
+  visibleMarkedLocationIds?: Set<MarkedLocation['id']>
+  isVisualMode?: boolean
+}
+
+const MarkedLocationsLayer = ({
+  visibleMarkedLocationIds,
+  isVisualMode = false,
+}: MarkedLocationsLayerProps) => {
   const activeUserId = useMarkedLocationsStore(state => state.activeUserId)
   const allMarkedLocations = useMarkedLocationsStore(state => state.markedLocations)
 
   const markedLocations = useMemo(
     () =>
-      activeUserId ? allMarkedLocations.filter(location => location.userId === activeUserId) : [],
-    [activeUserId, allMarkedLocations],
+      activeUserId
+        ? allMarkedLocations.filter(location => {
+            const belongsToActiveUser = location.userId === activeUserId
+            const isVisibleInTimeline =
+              !visibleMarkedLocationIds || visibleMarkedLocationIds.has(location.id)
+
+            return belongsToActiveUser && isVisibleInTimeline
+          })
+        : [],
+    [activeUserId, allMarkedLocations, visibleMarkedLocationIds],
   )
 
   const markedLocationsData = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
@@ -43,9 +60,10 @@ const MarkedLocationsLayer = () => {
         type="circle"
         source={MARKED_LOCATIONS_SOURCE_ID}
         paint={{
-          'circle-color': theme.colors.white,
-          'circle-radius': 12,
-          'circle-opacity': 0.75,
+          'circle-color': isVisualMode ? '#fbbf24' : theme.colors.white,
+          'circle-radius': isVisualMode ? 17 : 12,
+          'circle-opacity': isVisualMode ? 0.55 : 0.75,
+          'circle-blur': isVisualMode ? 0.35 : 0,
         }}
       />
 
@@ -55,9 +73,9 @@ const MarkedLocationsLayer = () => {
         source={MARKED_LOCATIONS_SOURCE_ID}
         paint={{
           'circle-color': theme.colors.dark,
-          'circle-radius': 7,
-          'circle-stroke-color': theme.colors.warning,
-          'circle-stroke-width': 3,
+          'circle-radius': isVisualMode ? 8 : 7,
+          'circle-stroke-color': isVisualMode ? '#fff7ed' : theme.colors.warning,
+          'circle-stroke-width': isVisualMode ? 4 : 3,
         }}
       />
     </Source>
