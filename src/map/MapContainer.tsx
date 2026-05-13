@@ -14,8 +14,13 @@ import SpaceBackground from '@/frontend/components/globe/SpaceBackground'
 import MarkedLocationMemoryMarkers from '@/frontend/components/memories/MarkedLocationMemoryMarkers'
 import MemoryFeed from '@/frontend/components/memories/MemoryFeed'
 import MemoryPanel from '@/frontend/components/memories/MemoryPanel'
+import VisualModePanel, {
+  VisualModeTimelineItem,
+} from '@/frontend/components/visual/VisualModePanel'
 import { getFirebaseAuth, getFirebaseConfigError } from '@/frontend/services/firebase'
 import useDetectScreen from '@/hooks/useDetectScreen'
+import { Memory } from '@/shared/types/memory'
+import AnimatedRouteLinesLayer from '@/src/map/Layers/AnimatedRouteLinesLayer'
 import MarkedLocationsLayer, {
   MARKED_LOCATION_DOT_LAYER_ID,
   MARKED_LOCATION_HALO_LAYER_ID,
@@ -46,6 +51,32 @@ type LocationSearchResult = {
   }
 }
 
+const getMemoryDate = (memory: Memory) => {
+  const rawDate = memory.date || memory.createdAt
+  const rawTime = memory.time || '00:00'
+  const date = new Date(`${rawDate}T${rawTime}`)
+
+  if (!Number.isNaN(date.getTime())) return date
+
+  const fallbackDate = new Date(rawDate)
+  return Number.isNaN(fallbackDate.getTime()) ? new Date(0) : fallbackDate
+}
+
+const getTimelineKey = (memory: Memory) => {
+  const date = getMemoryDate(memory)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+
+  return `${year}-${month}`
+}
+
+const getTimelineLabel = (timelineKey: string) => {
+  const [year, month] = timelineKey.split('-').map(Number)
+  const date = new Date(year, month - 1, 1)
+
+  return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
+
 const onMapError = (evt: ErrorEvent) => {
   const { error } = evt
   throw new Error(`Map error: ${error.message}`)
@@ -66,6 +97,15 @@ const MapInner = () => {
   const [isMemoryFeedOpen, setIsMemoryFeedOpen] = useState(false)
   const [isMemoryFeedVisible, setIsMemoryFeedVisible] = useState(false)
 
+  const [isVisualMode, setIsVisualMode] = useState(false)
+  const [selectedTimelineKey, setSelectedTimelineKey] = useState('')
+  const [isTimelinePlaying, setIsTimelinePlaying] = useState(false)
+  const [isRouteRepeating, setIsRouteRepeating] = useState(false)
+
+  const [aiTripStory, setAiTripStory] = useState('')
+  const [aiTripStoryError, setAiTripStoryError] = useState<string | undefined>()
+  const [isGeneratingTripStory, setIsGeneratingTripStory] = useState(false)
+
   const setViewState = useMapStore(state => state.setViewState)
   const setThrottledViewState = useMapStore(state => state.setThrottledViewState)
   const isMapGlLoaded = useMapStore(state => state.isMapGlLoaded)
@@ -80,6 +120,7 @@ const MapInner = () => {
   const setMemoriesActiveUserId = useMemoriesStore(state => state.setActiveUserId)
   const selectedMarkedLocationId = useMemoriesStore(state => state.selectedMarkedLocationId)
   const selectMarkedLocation = useMemoriesStore(state => state.selectMarkedLocation)
+  const memories = useMemoriesStore(state => state.memories)
 
   const activeMarkedLocations = useMemo(
     () =>
@@ -91,6 +132,38 @@ const MapInner = () => {
     () => activeMarkedLocations.find(location => location.id === selectedMarkedLocationId),
     [activeMarkedLocations, selectedMarkedLocationId],
   )
+
+  const timelineItems = useMemo<VisualModeTimelineItem[]>(() => {
+    const activeMarkedLocationIds = new Set(activeMarkedLocations.map(location => location.id))
+
+    const countsByKey = memories.reduce<Record<string, number>>((acc, memory) => {
+      if (!activeMarkedLocationIds.has(memory.markedLocationId)) return acc
+
+      const key = getTimelineKey(memory)
+      acc[key] = (acc[key] || 0) + 1
+      return acc
+    }, {})
+
+    return Object.entries(countsByKey)
+      .sort(([firstKey], [secondKey]) => firstKey.localeCompare(secondKey))
+      .map(([key, count]) => ({
+        key,
+        label: getTimelineLabel(key),
+        count,
+      }))
+  }, [activeMarkedLocations, memories])
+
+  const visibleTimelineMemories = useMemo(() => {
+    if (!isVisualMode || !selectedTimelineKey) return memories
+
+    return memories.filter(memory => getTimelineKey(memory) <= selectedTimelineKey)
+  }, [isVisualMode, memories, selectedTimelineKey])
+
+  const visibleMarkedLocationIds = useMemo(() => {
+    if (!isVisualMode) return undefined
+
+    return new Set(visibleTimelineMemories.map(memory => memory.markedLocationId))
+  }, [isVisualMode, visibleTimelineMemories])
 
   const { setMap, map } = useMapContext()
   const { viewportWidth, viewportHeight, viewportRef } = useDetectScreen()
@@ -111,6 +184,36 @@ const MapInner = () => {
       setMemoriesActiveUserId(user?.uid)
     })
   }, [setActiveUserId, setMemoriesActiveUserId])
+
+  useEffect(() => {
+    if (!timelineItems.length) {
+      setSelectedTimelineKey('')
+      setIsTimelinePlaying(false)
+      return
+    }
+
+    setSelectedTimelineKey(current => current || timelineItems[0].key)
+  }, [timelineItems])
+
+  useEffect(() => {
+    if (!isTimelinePlaying || !isVisualMode || !timelineItems.length) return undefined
+
+    const interval = window.setInterval(() => {
+      setSelectedTimelineKey(currentKey => {
+        const currentIndex = timelineItems.findIndex(item => item.key === currentKey)
+        const nextIndex = currentIndex + 1
+
+        if (nextIndex >= timelineItems.length) {
+          setIsTimelinePlaying(false)
+          return currentKey
+        }
+
+        return timelineItems[nextIndex].key
+      })
+    }, 1400)
+
+    return () => window.clearInterval(interval)
+  }, [isTimelinePlaying, isVisualMode, timelineItems])
 
   const throttledSetViewState = useMemo(
     () => throttle((state: ViewState) => setThrottledViewState(state), 50),
@@ -233,6 +336,78 @@ const MapInner = () => {
     setLocationSearchError('Log in to mark locations.')
     return false
   }, [activeUserId])
+
+  const handleToggleVisualMode = useCallback(() => {
+    setIsVisualMode(current => {
+      const nextValue = !current
+
+      if (nextValue) {
+        closeMemoryFeed()
+        selectMarkedLocation(undefined)
+        setSelectedTimelineKey(timelineItems[0]?.key || '')
+      } else {
+        setIsTimelinePlaying(false)
+        setIsRouteRepeating(false)
+        setAiTripStory('')
+        setAiTripStoryError(undefined)
+      }
+
+      return nextValue
+    })
+  }, [closeMemoryFeed, selectMarkedLocation, timelineItems])
+
+  const handleRestartTimeline = useCallback(() => {
+    setSelectedTimelineKey(timelineItems[0]?.key || '')
+    setIsTimelinePlaying(Boolean(timelineItems.length))
+  }, [timelineItems])
+
+  const handleGenerateTripStory = useCallback(async () => {
+    if (!visibleTimelineMemories.length) {
+      setAiTripStoryError('Add memories before generating a trip story.')
+      return
+    }
+
+    setIsGeneratingTripStory(true)
+    setAiTripStoryError(undefined)
+
+    try {
+      const response = await fetch('/api/ai/trip-story', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          memories: visibleTimelineMemories,
+          locations: activeMarkedLocations,
+        }),
+      })
+
+      const responseText = await response.text()
+
+      let data: {
+        story?: string
+        error?: string
+      } = {}
+
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        throw new Error(responseText || 'The trip story API did not return valid JSON.')
+      }
+
+      if (!response.ok || !data.story) {
+        throw new Error(data.error || 'Unable to generate a trip story.')
+      }
+
+      setAiTripStory(data.story)
+    } catch (error) {
+      setAiTripStoryError(
+        error instanceof Error ? error.message : 'Unable to generate a trip story.',
+      )
+    } finally {
+      setIsGeneratingTripStory(false)
+    }
+  }, [activeMarkedLocations, visibleTimelineMemories])
 
   const onMapClick = useCallback(
     (evt: MapLayerMouseEvent) => {
@@ -421,10 +596,22 @@ const MapInner = () => {
           renderWorldCopies={false}
           dragRotate
         >
-          <MarkedLocationsLayer />
+          <AnimatedRouteLinesLayer
+            memories={visibleTimelineMemories}
+            markedLocations={activeMarkedLocations}
+            isEnabled={isVisualMode}
+            shouldRepeat={isRouteRepeating}
+          />
+
+          <MarkedLocationsLayer
+            visibleMarkedLocationIds={visibleMarkedLocationIds}
+            isVisualMode={isVisualMode}
+          />
 
           <MarkedLocationMemoryMarkers
             markedLocations={activeMarkedLocations}
+            visibleMarkedLocationIds={visibleMarkedLocationIds}
+            isVisualMode={isVisualMode}
             onSelectMarkedLocation={handleSelectMarkedLocation}
           />
 
@@ -447,6 +634,25 @@ const MapInner = () => {
           <TopBar isMemoryFeedOpen={isMemoryFeedVisible} onOpenMemoryFeed={toggleMemoryFeed} />
 
           <div className="absolute bottom-4 left-4 z-20 w-80 rounded-md bg-white/90 px-3 py-3 text-sm text-dark shadow-md">
+            <VisualModePanel
+              isVisualMode={isVisualMode}
+              onToggleVisualMode={handleToggleVisualMode}
+              timelineItems={timelineItems}
+              selectedTimelineKey={selectedTimelineKey}
+              onSelectTimelineKey={setSelectedTimelineKey}
+              isPlaying={isTimelinePlaying}
+              isRepeating={isRouteRepeating}
+              onTogglePlay={() => setIsTimelinePlaying(current => !current)}
+              onRestart={handleRestartTimeline}
+              onToggleRepeat={() => setIsRouteRepeating(current => !current)}
+              onGenerateTripStory={handleGenerateTripStory}
+              aiTripStory={aiTripStory}
+              aiTripStoryError={aiTripStoryError}
+              isGeneratingTripStory={isGeneratingTripStory}
+              visibleCount={isVisualMode ? visibleTimelineMemories.length : memories.length}
+              totalCount={memories.length}
+            />
+
             <button
               className="w-full rounded bg-dark px-3 py-2 font-semibold text-white"
               type="button"
